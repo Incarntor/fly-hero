@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fly Hero</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>FLY HERO <span>🎸🪰</span></h1>
+        <p>Муха-дрозофила играет в Guitar Hero. Её мозг — 14 664 нейрона настоящего коннектома. У вас — 86 миллиардов. Посмотрим.</p>
+      </div>
+      <div class="controls">
+        <select id="speed" title="Скорость времени">
+          <option value="1">×1</option>
+          <option value="0.5">×0.5</option>
+          <option value="0.25">×0.25 слоу-мо</option>
+        </select>
+        <button id="mute">🔊</button>
+        <button id="menu">🎵 Сменить песню</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="highways">
+        <div id="player-wrap" class="highway" hidden>
+          <canvas id="player" width="360" height="600"></canvas>
+        </div>
+        <div class="highway">
+          <canvas id="fly" width="360" height="600"></canvas>
+        </div>
+      </section>
+
+      <section class="side">
+        <div class="panel stage">
+          <canvas id="stage" width="440" height="270"></canvas>
+          <div class="heckle">
+            <span class="muted">Из зала:</span>
+            <button id="throw-sugar">🍬 Кинуть сахарок</button>
+            <button id="throw-slipper">🩴 Кинуть тапок</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Нейронные лады <small>вход → выход</small></h3>
+          <div id="lanes" class="lanes"></div>
+        </div>
+        <div class="panel">
+          <h3>Мозг <small id="brain-status"></small></h3>
+          <canvas id="brain" width="440" height="200"></canvas>
+        </div>
+      </section>
+    </main>
+
+    <div id="overlay" class="overlay">
+      <div class="card">
+        <div id="loading">
+          <h2>Настраиваем гитару…</h2>
+          <p class="muted">Загружаем 1,87 млн синапсов.</p>
+        </div>
+        <div id="song-menu" hidden>
+          <h2>Выберите песню</h2>
+          <div class="modes">
+            <label><input type="radio" name="mode" value="solo" checked /> 🪰 Муха играет соло</label>
+            <label><input type="radio" name="mode" value="duel" /> ⚔️ Дуэль: вы против мухи <small>(клавиши A S D F)</small></label>
+            <label><input type="radio" name="mode" value="listen" /> 🎧 Просто послушать трек <small>(сыграно идеально, без мухи)</small></label>
+          </div>
+          <div id="songs" class="songs"></div>
+        </div>
+        <div id="results" hidden>
+          <h2 id="results-title"></h2>
+          <div id="results-stars" class="stars"></div>
+          <p id="results-text"></p>
+          <div id="results-stats" class="results-stats"></div>
+          <div class="card-buttons">
+            <button id="results-menu" class="secondary">🎵 Другая песня</button>
+            <button id="results-again">↺ Ещё раз</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Как это работает: ноты едут по грифу и надвигаются — это подаётся на детекторы лумминга LPLC2 (левый/правый глаз,
+      оба глаза) или на сладкие вкусовые рецепторы. «Нажатие» — когда нейроны поворота, хоботка (MN9) или giant fiber
+      превышают порог. Задержку мозга откалибровали, как задержку звука в настоящем Guitar Hero. Модель мозга: Shiu et al. 2024,
+      коннектом FlyWire. Мелодии оригинальные, названия — нет.
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,338 @@
+:root {
+  --bg: #0b0910;
+  --panel: #16121e;
+  --line: #2b2436;
+  --text: #f1eef6;
+  --muted: #a39cb2;
+  --accent: #ffd23f;
+  --hot: #ff4f5e;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  padding: 16px;
+  background: radial-gradient(ellipse at top, #231530, var(--bg) 60%) fixed;
+  color: var(--text);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+h1 {
+  margin: 0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 24px;
+  color: var(--accent);
+  text-shadow: 3px 3px 0 var(--hot);
+}
+
+h1 span {
+  font-family: system-ui, sans-serif;
+  text-shadow: none;
+}
+
+.top p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  gap: 6px;
+}
+
+button,
+select {
+  font: inherit;
+  color: var(--text);
+  background: #241d30;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: auto minmax(300px, 460px);
+  gap: 16px;
+  align-items: start;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.highways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
+.highway canvas {
+  display: block;
+  width: min(360px, calc(100vw - 32px));
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px var(--line), 0 20px 40px rgba(145, 71, 255, 0.15);
+}
+
+.side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.panel h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.panel h3 small {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: normal;
+}
+
+.stage {
+  padding: 6px;
+}
+
+#stage,
+#brain {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.heckle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px 2px;
+}
+
+.lanes {
+  display: grid;
+  gap: 8px;
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 2px 8px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.lane .dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  grid-row: span 2;
+}
+
+.lane small {
+  color: var(--muted);
+}
+
+.lane output {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.lane .track {
+  grid-column: 2 / -1;
+  height: 6px;
+  background: #0b0910;
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.lane .fill {
+  height: 100%;
+  width: 0;
+  transition: width 80ms linear;
+}
+
+.lane .threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(5, 3, 10, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 10;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  width: min(640px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.modes {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.modes label {
+  cursor: pointer;
+}
+
+.modes small {
+  color: var(--muted);
+}
+
+.songs {
+  display: grid;
+  gap: 8px;
+}
+
+.song {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.song .title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.song .artist {
+  color: var(--muted);
+}
+
+.song .difficulty {
+  grid-row: span 2;
+  align-self: center;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.song .blurb {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stars {
+  font-size: 28px;
+  letter-spacing: 4px;
+  margin-bottom: 8px;
+}
+
+#results-text {
+  line-height: 1.5;
+}
+
+.results-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.results-stats .wide {
+  grid-column: 1 / -1;
+}
+
+.results-stats b {
+  color: var(--text);
+}
+
+.card-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+#results-again {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1024;
+  font-weight: 700;
+}
+
+footer {
+  margin: 16px auto 0;
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 1100px;
+  text-align: center;
+}
