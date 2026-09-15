@@ -5,7 +5,7 @@
 
 import { midiToFreq, type BackingEvent } from './songs';
 
-export type Timbre = 'fly' | 'rhythm' | 'player';
+export type Timbre = 'fly' | 'smooth' | 'rhythm' | 'player';
 
 export class Band {
   private ctx: BaseAudioContext | null = null;
@@ -115,7 +115,9 @@ export class Band {
       case 'swell':
         return this.swell(when, event.durationMs * timeScale, event.velocity);
       case 'lead':
-        return this.lead(when, event.midi, event.durationMs * timeScale, event.fly ? 'fly' : 'rhythm', event.harmony);
+        return this.lead(when, event.midi, event.durationMs * timeScale, event.fly ? (event.smooth ? 'smooth' : 'fly') : 'rhythm', event.harmony, event.bendTo);
+      case 'clean':
+        return this.clean(when, event.midi, event.durationMs * timeScale, event.velocity);
       case 'bell':
         return this.bell(when, event.midi, event.velocity);
       case 'tomHigh':
@@ -330,6 +332,45 @@ export class Band {
     this.noiseBurst(when, 'bandpass', 2500, 0.08 * velocity, 0.03, this.bus, 2);
   }
 
+  /**
+   * Чистая гитара: мягкий щипок с лёгким хорусом, длинным затуханием, эхом и большим залом —
+   * для психоделических арпеджио.
+   */
+  clean(when: number, midi: number, durationMs: number, velocity = 1): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const duration = Math.max(0.3, durationMs / 1000);
+    const freq = midiToFreq(midi);
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.setValueAtTime(2600, when);
+    tone.frequency.exponentialRampToValueAtTime(900, when + duration);
+    tone.Q.value = 0.4;
+    const gain = ctx.createGain();
+    const level = 0.13 * velocity;
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(level, when + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+    for (const [type, detune, mix] of [['triangle', -5, 1], ['sawtooth', 6, 0.35], ['sine', 0, 0.5]] as const) {
+      const osc = ctx.createOscillator();
+      const partial = ctx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      osc.detune.value = detune;
+      partial.gain.value = mix;
+      osc.connect(partial).connect(tone);
+      osc.start(when);
+      osc.stop(when + duration + 0.1);
+    }
+    tone.connect(gain).connect(this.bus);
+    const reverb = ctx.createGain();
+    reverb.gain.value = 0.55;
+    gain.connect(reverb).connect(this.reverbSend);
+    const delay = ctx.createGain();
+    delay.gain.value = 0.4;
+    gain.connect(delay).connect(this.delaySend);
+  }
+
   // --- ритм-гитара ---
 
   /**
@@ -409,17 +450,20 @@ export class Band {
    * fly — гитара мухи: мягкий перегруз, вибрато, дилей. rhythm — ритм-гитарист, тише и темнее.
    * player — человек в дуэли: колокольчик октавой выше, чтобы не спорить с гитарой.
    */
-  lead(when: number, midi: number, durationMs: number, timbre: Timbre, harmony?: number): void {
+  /** @param bendTo нота, в которую соло-гитара подтягивает струну */
+  lead(when: number, midi: number, durationMs: number, timbre: Timbre, harmony?: number, bendTo?: number): void {
     if (!this.ctx) return;
-    const duration = Math.max(0.12, Math.min(1.6, durationMs / 1000));
+    const maxDuration = timbre === 'smooth' ? 4 : 1.6;
+    const duration = Math.max(0.12, Math.min(maxDuration, durationMs / 1000));
     if (timbre === 'player') return this.glockenspiel(when, midi + 12);
-    const level = timbre === 'fly' ? 0.3 : 0.15;
-    this.guitarVoice(when, midi, duration, level, timbre);
+    const level = timbre === 'rhythm' ? 0.15 : 0.3;
+    const bend = bendTo === undefined ? 0 : bendTo - midi;
+    this.guitarVoice(when, midi, duration, level, timbre, bend);
     // вторая гитара — через свой «усилитель», иначе общий перегруз даст грязные разностные тоны
-    if (harmony !== undefined) this.guitarVoice(when, harmony, duration, level * 0.55, timbre);
+    if (harmony !== undefined) this.guitarVoice(when, harmony, duration, level * 0.55, timbre, bend);
   }
 
-  private guitarVoice(when: number, midi: number, duration: number, level: number, timbre: Timbre): void {
+  private guitarVoice(when: number, midi: number, duration: number, level: number, timbre: Timbre, bend = 0): void {
     const ctx = this.ctx!;
     const freq = midiToFreq(midi);
     const voices: OscillatorNode[] = [];
@@ -431,6 +475,13 @@ export class Band {
       osc.frequency.value = freq;
       osc.detune.setValueAtTime(detune - 10, when); // лёгкий щипок, без заметной фальши
       osc.detune.linearRampToValueAtTime(detune, when + 0.02);
+      if (bend) {
+        // подтяжка: струна плавно въезжает в нужную ноту и повисает там
+        const rise = Math.min(duration * 0.55, 0.9);
+        osc.detune.setValueAtTime(detune, when + duration * 0.12);
+        osc.detune.linearRampToValueAtTime(detune + bend * 100 * 1.04, when + duration * 0.12 + rise);
+        osc.detune.linearRampToValueAtTime(detune + bend * 100, when + duration * 0.12 + rise + 0.12);
+      }
       osc.connect(mix);
       voices.push(osc);
     }
@@ -440,17 +491,19 @@ export class Band {
     const vibratoDepth = ctx.createGain();
     vibratoDepth.gain.setValueAtTime(0, when);
     if (duration > 0.4) {
-      vibratoDepth.gain.setValueAtTime(0, when + 0.2);
-      vibratoDepth.gain.linearRampToValueAtTime(9, when + Math.min(duration, 0.5));
+      // после подтяжки вибрато вступает позже и глубже — нота «висит» и дышит
+      const start = bend ? Math.min(duration * 0.7, 1.2) : 0.2;
+      vibratoDepth.gain.setValueAtTime(0, when + start);
+      vibratoDepth.gain.linearRampToValueAtTime(timbre === 'smooth' ? 16 : 9, when + Math.min(duration, start + 0.4));
     }
     vibrato.connect(vibratoDepth);
     for (const osc of voices) vibratoDepth.connect(osc.detune);
 
     const drive = ctx.createWaveShaper();
-    drive.curve = softClipCurve(timbre === 'fly' ? 3 : 2.2);
+    drive.curve = softClipCurve(timbre === 'fly' ? 3 : timbre === 'smooth' ? 1.8 : 2.2);
     const tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
-    tone.frequency.value = timbre === 'fly' ? 2400 : 1600;
+    tone.frequency.value = timbre === 'fly' ? 2400 : timbre === 'smooth' ? 3000 : 1600;
     tone.Q.value = 0.6;
     const body = ctx.createBiquadFilter();
     body.type = 'peaking';
@@ -458,19 +511,24 @@ export class Band {
     body.gain.value = 3;
 
     const gain = ctx.createGain();
+    const sustain = timbre === 'smooth' ? 0.9 : 0.75;
     gain.gain.setValueAtTime(0.0001, when);
-    gain.gain.exponentialRampToValueAtTime(level, when + 0.008);
-    gain.gain.exponentialRampToValueAtTime(level * 0.75, when + 0.15);
-    gain.gain.setValueAtTime(level * 0.75, when + Math.max(0.15, duration - 0.05));
-    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration + 0.1);
+    gain.gain.exponentialRampToValueAtTime(level, when + (timbre === 'smooth' ? 0.03 : 0.008));
+    gain.gain.exponentialRampToValueAtTime(level * sustain, when + 0.15);
+    gain.gain.setValueAtTime(level * sustain, when + Math.max(0.15, duration - 0.05));
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration + (timbre === 'smooth' ? 0.5 : 0.1));
 
     mix.connect(drive).connect(body).connect(tone).connect(gain);
     gain.connect(this.bus);
-    gain.connect(this.delaySend);
-    gain.connect(this.reverbSend);
+    const echo = ctx.createGain();
+    echo.gain.value = timbre === 'smooth' ? 0.7 : 1;
+    gain.connect(echo).connect(this.delaySend);
+    const room = ctx.createGain();
+    room.gain.value = timbre === 'smooth' ? 1.6 : 1;
+    gain.connect(room).connect(this.reverbSend);
     for (const osc of [...voices, vibrato]) {
       osc.start(when);
-      osc.stop(when + duration + 0.15);
+      osc.stop(when + duration + (timbre === 'smooth' ? 0.6 : 0.15));
     }
   }
 

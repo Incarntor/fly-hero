@@ -2,14 +2,14 @@
  * Песни: мелодия, гармония и грув. Мелодии оригинальные, названия — нет.
  *
  * Мелодия записана по тактам 4/4 в восьмых: «E4/2» — ми первой октавы длиной две восьмых, «E4/0.5» — шестнадцатая,
- * «-/2» — пауза. Песня пишется в удобной тональности и опускается на `transpose` полутонов — так строй ниже.
+ * «-/2» — пауза, «D5~F5/6» — подтяжка струны: нота начинается с ре и плавно въезжает в фа. Песня пишется в удобной тональности и опускается на `transpose` полутонов — так строй ниже.
  * Ноты для мухи выводятся из мелодии, как в Guitar Hero: мелодия идёт вверх — лад сдвигается вправо.
  * Ноты, которые мозгу мухи физически не успеть (слишком плотно), играет «ритм-гитарист». Мелодия звучит всегда,
  * даже если муха промахнулась, — промахи видны в очках и комбо, но не рвут музыку.
  */
 
 export type Lane = 0 | 1 | 2 | 3;
-export type Groove = 'doom' | 'gallop' | 'thrash' | 'blast' | 'breakdown';
+export type Groove = 'doom' | 'gallop' | 'thrash' | 'blast' | 'breakdown' | 'psych';
 
 export interface Note extends MelodyNote {
   lane: Lane;
@@ -19,6 +19,8 @@ export interface MelodyNote {
   timeMs: number;
   midi: number;
   durationMs: number;
+  /** Подтяжка: до какой ноты гитарист дотягивает струну. */
+  bendTo?: number;
   /** Вторая гитара: нота аккорда на терцию–кварту ниже мелодии. */
   harmony: number;
 }
@@ -34,10 +36,12 @@ export type BackingEvent =
   | { timeMs: number; kind: 'swell'; durationMs: number; velocity: number }
   /** Ритм-гитара с дисторшном: пауэр-аккорд, открытый или глушёный ладонью. */
   | { timeMs: number; kind: 'power'; midi: number; fifth: number; durationMs: number; muted: boolean; velocity: number; attackMs?: number }
+  /** Чистая гитара: арпеджио по аккорду, с эхом и залом. */
+  | { timeMs: number; kind: 'clean'; midi: number; durationMs: number; velocity: number }
   /** Погребальный колокол. */
   | { timeMs: number; kind: 'bell'; midi: number; velocity: number }
   /** Нота мелодии. Звучит всегда, попала муха или нет, — так музыка не рвётся; fly — нота из грифа мухи. */
-  | { timeMs: number; kind: 'lead'; midi: number; harmony: number; durationMs: number; fly: boolean };
+  | { timeMs: number; kind: 'lead'; midi: number; harmony: number; durationMs: number; fly: boolean; bendTo?: number; smooth?: boolean };
 
 export interface Song {
   id: string;
@@ -50,6 +54,8 @@ export interface Song {
   /** Сдвиг вниз/вверх в полутонах относительно записи. */
   transpose: number;
   groove: Groove;
+  /** Мягкий певучий тембр соло вместо металлического. */
+  smoothLead?: boolean;
   /** Части с другим грувом: такты с 1, включительно. */
   sections?: { from: number; to: number; groove: Groove }[];
   /** Аккорд на такт, такты через «|». */
@@ -67,29 +73,52 @@ export const SONGS: Song[] = [
     title: 'Smoke on the Vinegar',
     artist: 'Deep Pupa',
     difficulty: 'Лёгкий',
-    blurb: 'Похоронный дум в си миноре. Колокол, фригийский брейкдаун и соло. Мухи в зале молча раскачиваются.',
+    blurb: 'Похоронный дум в си миноре: тема, брейкдаун, соло, второй куплет, бридж и соло-кульминация. Почти два с половиной часа по меркам мухи.',
     bpm: 84,
     key: 'B harmonic minor',
     transpose: -5,
     groove: 'doom',
     sections: [{ from: 17, to: 20, groove: 'breakdown' }],
     chords:
-      'Em | C | Am | B | Em | C | B | B | Am | Em | C | B | Am | C | B | Em | ' +
-      'Em | F | Em | F | ' +
-      'Am | B | Em | C | Am | B | C | B | Em',
+      'Em | C | Am | B | Em | C | B | B | ' +
+      'Am | Em | C | B | Am | C | B | Em | ' +
+      'Em | F | Em | F | Am | B | Em | C | ' +
+      'Am | B | C | B | Em | C | Am | B | ' +
+      'Em | C | B | Em | Am | F | C | B | ' +
+      'Am | B | Em | C | Am | B | F | B | ' +
+      'Em',
     melody:
       // тема: нисходящий мотив-плач, проводится секвенцией
-      'B4/2 A4/1 G4/1 A4/2 B4/2 | C5/2 B4/1 A4/1 G4/4 | A4/2 G4/1 F#4/1 E4/2 A4/2 | B4/2 C5/1 B4/1 A4/2 F#4/2 | ' +
-      'B4/2 A4/1 G4/1 A4/2 B4/2 | E5/2 D5/1 C5/1 B4/2 C5/2 | D#5/2 C5/1 B4/1 A4/2 F#4/2 | B4/6 -/2 | ' +
-      'C5/2 D5/1 E5/1 C5/2 A4/2 | B4/2 C5/1 B4/1 G4/2 E4/2 | E5/2 F#5/1 G5/1 E5/2 C5/2 | F#5/2 E5/1 D#5/1 B4/4 | ' +
-      'E5/2 D5/1 C5/1 A4/2 C5/2 | G5/2 F#5/1 E5/1 C5/2 E5/2 | F#5/2 E5/1 D#5/1 C5/2 D#5/2 | E5/8 | ' +
+      'B4/2 A4/1 G4/1 A4/2 B4/2 | C5/2 B4/1 A4/1 G4/4 | ' +
+      'A4/2 G4/1 F#4/1 E4/2 A4/2 | B4/2 C5/1 B4/1 A4/2 F#4/2 | ' +
+      'B4/2 A4/1 G4/1 A4/2 B4/2 | E5/2 D5/1 C5/1 B4/2 C5/2 | ' +
+      'D#5/2 C5/1 B4/1 A4/2 F#4/2 | B4/6 -/2 | ' +
+      'C5/2 D5/1 E5/1 C5/2 A4/2 | B4/2 C5/1 B4/1 G4/2 E4/2 | ' +
+      'E5/2 F#5/1 G5/1 E5/2 C5/2 | F#5/2 E5/1 D#5/1 B4/4 | ' +
+      'E5/2 D5/1 C5/1 A4/2 C5/2 | G5/2 F#5/1 E5/1 C5/2 E5/2 | ' +
+      'F#5/2 E5/1 D#5/1 C5/2 D#5/2 | E5/8 | ' +
       // брейкдаун
-      'B4/8 | C5/8 | B4/4 G4/4 | A4/4 F4/4 | ' +
+      'B4/8 | C5/8 | ' +
+      'B4/4 G4/4 | A4/4 F4/4 | ' +
       // соло: гаммовые фразы секвенцией вверх и разрешение в тонику
       'E5/1 D5/1 C5/1 B4/1 C5/2 A4/2 | F#5/1 E5/1 D#5/1 C5/1 D#5/2 B4/2 | ' +
       'G5/1 F#5/1 E5/1 D#5/1 E5/2 B4/2 | G5/1 A5/1 G5/1 E5/1 C5/4 | ' +
       'A5/0.5 G5/0.5 F#5/0.5 E5/0.5 C5/1 E5/1 A5/2 E5/2 | B5/0.5 A5/0.5 G5/0.5 F#5/0.5 D#5/1 F#5/1 B5/2 F#5/2 | ' +
-      'C6/0.5 B5/0.5 A5/0.5 G5/0.5 E5/1 G5/1 C6/2 G5/2 | B5/2 A5/1 G5/1 F#5/2 D#5/2 | E5/8',
+      'C6/0.5 B5/0.5 A5/0.5 G5/0.5 E5/1 G5/1 C6/2 G5/2 | B5/2 A5/1 G5/1 F#5/2 D#5/2 | ' +
+      // второй куплет: та же тема октавой выше
+      'B5/2 A5/1 G5/1 A5/2 B5/2 | C6/2 B5/1 A5/1 G5/4 | ' +
+      'A5/2 G5/1 F#5/1 E5/2 A5/2 | B5/2 A5/1 F#5/1 D#5/2 B4/2 | ' +
+      'E5/2 G5/2 B5/2 E6/2 | C6/4 B5/2 G5/2 | ' +
+      'F#5/2 D#5/2 B4/4 | E5/8 | ' +
+      // бридж
+      'A4/4 C5/2 E5/2 | F5/4 E5/2 C5/2 | ' +
+      'G5/4 E5/2 C5/2 | F#5/2 D#5/2 B4/4 | ' +
+      // соло-кульминация и финал
+      'A5/0.5 B5/0.5 C6/1 B5/1 A5/1 E5/2 A5/2 | B5/0.5 C6/0.5 D#6/1 C6/1 B5/1 F#5/2 B5/2 | ' +
+      'E6/1 B5/1 G5/1 E5/1 G5/2 B5/2 | C6/1 B5/1 G5/1 E5/1 G5/2 C6/2 | ' +
+      'E5/0.5 F#5/0.5 G5/0.5 A5/0.5 C6/1 A5/1 E5/2 C5/2 | F#5/0.5 G5/0.5 A5/0.5 B5/0.5 D#6/1 B5/1 F#5/2 D#5/2 | ' +
+      'F5/1 A5/1 C6/1 A5/1 F5/2 C5/2 | B5/2 A5/1 F#5/1 D#5/2 F#5/2 | ' +
+      'E5/8',
     chart: { minGapMs: 170, minSameLaneMs: 400 },
   },
   {
@@ -97,29 +126,55 @@ export const SONGS: Song[] = [
     title: 'Highway to Банан',
     artist: 'AC/DNa',
     difficulty: 'Средний',
-    blurb: 'Галоп в ре миноре, строй ниже некуда. Брейкдаун и соло шестнадцатыми — бананы на этом шоссе не выживают.',
+    blurb: 'Галоп в ре миноре со вторым куплетом, бриджем, двумя брейкдаунами и двумя соло. Бананы на этом шоссе не выживают.',
     bpm: 120,
     key: 'D harmonic minor',
     transpose: -7,
     groove: 'gallop',
-    sections: [{ from: 17, to: 20, groove: 'breakdown' }],
+    sections: [{ from: 17, to: 20, groove: 'breakdown' }, { from: 41, to: 44, groove: 'breakdown' }],
     chords:
-      'Am | F | G | E | Am | F | Dm | E | F | G | Am | Dm | F | E | E7 | Am | ' +
-      'Am | Bb | Am | Bb | ' +
-      'Dm | E | Am | F | Dm | E | F | E7 | Am',
+      'Am | F | G | E | Am | F | Dm | E | ' +
+      'F | G | Am | Dm | F | E | E7 | Am | ' +
+      'Am | Bb | Am | Bb | Dm | E | Am | F | ' +
+      'Dm | E | F | E7 | Am | F | G | E | ' +
+      'Am | F | E | Am | Dm | Am | Bb | E | ' +
+      'Am | Bb | Am | E | Dm | E | Am | F | ' +
+      'G | E | Am | E7 | Am',
     melody:
       // тема: галопирующий мотив с повтором и ответом
-      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 B4/1 A4/2 G4/2 | B4/2 B4/1 A4/1 G4/2 D5/2 | B4/4 G#4/2 E4/2 | ' +
-      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 D5/1 E5/2 F5/2 | F5/2 E5/1 D5/1 A4/2 D5/2 | E5/4 D5/2 B4/2 | ' +
-      'A5/2 G5/1 F5/1 C5/2 F5/2 | B5/2 A5/1 G5/1 D5/2 G5/2 | C6/2 B5/1 A5/1 E5/2 A5/2 | F5/2 E5/1 D5/1 A5/4 | ' +
-      'A5/2 G5/1 F5/1 C5/2 F5/2 | G#5/2 F5/1 E5/1 B4/2 E5/2 | D5/2 E5/1 F5/1 G#5/2 B5/2 | A5/8 | ' +
+      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 B4/1 A4/2 G4/2 | ' +
+      'B4/2 B4/1 A4/1 G4/2 D5/2 | B4/4 G#4/2 E4/2 | ' +
+      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 D5/1 E5/2 F5/2 | ' +
+      'F5/2 E5/1 D5/1 A4/2 D5/2 | E5/4 D5/2 B4/2 | ' +
+      'A5/2 G5/1 F5/1 C5/2 F5/2 | B5/2 A5/1 G5/1 D5/2 G5/2 | ' +
+      'C6/2 B5/1 A5/1 E5/2 A5/2 | F5/2 E5/1 D5/1 A5/4 | ' +
+      'A5/2 G5/1 F5/1 C5/2 F5/2 | G#5/2 F5/1 E5/1 B4/2 E5/2 | ' +
+      'D5/2 E5/1 F5/1 G#5/2 B5/2 | A5/8 | ' +
       // брейкдаун
-      'E5/8 | F5/8 | E5/4 C5/4 | D5/4 F5/4 | ' +
+      'E5/8 | F5/8 | ' +
+      'E5/4 C5/4 | D5/4 F5/4 | ' +
       // соло
       'D5/0.5 E5/0.5 F5/1 E5/1 D5/1 A4/2 D5/2 | E5/0.5 F5/0.5 G#5/1 F5/1 E5/1 B4/2 E5/2 | ' +
       'A5/1 G#5/1 A5/1 B5/1 C6/2 A5/2 | C6/1 B5/1 A5/1 G5/1 F5/2 C5/2 | ' +
       'F5/0.5 E5/0.5 D5/1 A5/1 F5/1 D5/2 F5/2 | G#5/0.5 F5/0.5 E5/1 B5/1 G#5/1 E5/2 G#5/2 | ' +
-      'A5/1 C6/1 B5/1 A5/1 G#5/1 A5/1 C6/2 | B5/2 G#5/2 E5/2 D5/2 | A5/8',
+      'A5/1 C6/1 B5/1 A5/1 G#5/1 A5/1 C6/2 | B5/2 G#5/2 E5/2 D5/2 | ' +
+      // второй куплет: ответная фраза уходит октавой выше
+      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 B4/1 A4/2 G4/2 | ' +
+      'B4/2 B4/1 A4/1 G4/2 D5/2 | B4/4 G#4/2 E4/2 | ' +
+      'A5/2 G5/1 E5/1 C5/2 A4/2 | C6/2 A5/1 F5/1 C5/2 A4/2 | ' +
+      'B5/2 G#5/1 E5/1 B4/2 G#4/2 | A4/8 | ' +
+      // бридж
+      'D5/4 F5/2 A5/2 | C6/4 A5/2 E5/2 | ' +
+      'Bb5/4 F5/2 D5/2 | B5/2 G#5/2 E5/4 | ' +
+      // второй брейкдаун
+      'A4/8 | Bb4/8 | ' +
+      'A4/4 E5/4 | G#4/4 B4/4 | ' +
+      // соло-кульминация и финал
+      'D5/0.5 E5/0.5 F5/1 A5/1 D6/1 A5/2 F5/2 | E5/0.5 F5/0.5 G#5/1 B5/1 E6/1 B5/2 G#5/2 | ' +
+      'A5/1 C6/1 E6/1 C6/1 A5/2 E5/2 | F5/1 A5/1 C6/1 A5/1 F5/2 C5/2 | ' +
+      'G5/0.5 A5/0.5 B5/1 D6/1 B5/1 G5/2 D5/2 | G#5/0.5 A5/0.5 B5/1 E6/1 B5/1 G#5/2 E5/2 | ' +
+      'A5/1 G5/1 F5/1 E5/1 D5/1 C5/1 B4/1 A4/1 | B4/2 D5/2 G#5/2 B5/2 | ' +
+      'A5/8',
     chart: { minGapMs: 120, minSameLaneMs: 220 },
   },
   {
@@ -127,29 +182,53 @@ export const SONGS: Song[] = [
     title: 'Smells Like Geosmin',
     artist: 'Нервана',
     difficulty: 'Сложный',
-    blurb: 'Трэш в до-диез фригийском: тритоны в риффе, брейкдаун и соло шестнадцатыми на 170 BPM. Мозг потеет.',
+    blurb: 'Трэш в до-диез фригийском: тема, брейкдаун, соло, второй куплет и соло-кульминация на 170 BPM.',
     bpm: 170,
     key: 'C# phrygian',
     transpose: -4,
     groove: 'thrash',
-    sections: [{ from: 18, to: 21, groove: 'breakdown' }],
+    sections: [{ from: 18, to: 21, groove: 'breakdown' }, { from: 38, to: 41, groove: 'breakdown' }],
     chords:
-      'Fm | Gb | Fm | Eb | Db | C | Fm | C7 | Fm | Gb | Ebm | Db | Bbm | C | Db | C7 | Fm | ' +
-      'Fm | Gb | Fm | Gb | ' +
-      'Fm | Db | Eb | C | Fm | Gb | Db | C7 | Fm',
+      'Fm | Gb | Fm | Eb | Db | C | Fm | C7 | ' +
+      'Fm | Gb | Ebm | Db | Bbm | C | Db | C7 | ' +
+      'Fm | Fm | Gb | Fm | Gb | Fm | Db | Eb | ' +
+      'C | Fm | Gb | Db | C7 | Fm | Db | Eb | ' +
+      'Fm | Fm | Db | C | C7 | Fm | Gb | Fm | ' +
+      'C | Fm | Db | Ebm | Gb | Fm | C | Db | ' +
+      'C7 | Fm',
     melody:
-      // тема: мотив с верхним вспомогательным звуком, проводится по аккордам
-      'C5/2 Db5/1 C5/1 Ab4/2 F4/2 | Db5/2 Eb5/1 Db5/1 Bb4/2 Gb4/2 | C5/2 Bb4/1 Ab4/1 G4/2 F4/2 | G4/2 Ab4/1 Bb4/1 Eb5/4 | ' +
-      'F5/2 Eb5/1 Db5/1 Ab4/2 F4/2 | E5/2 F5/1 G5/1 C5/4 | Ab5/2 G5/1 F5/1 C5/2 F5/2 | G5/2 F5/1 E5/1 Bb4/2 C5/2 | ' +
-      'F5/2 G5/1 Ab5/1 C6/2 Ab5/2 | Gb5/2 F5/1 Eb5/1 Db5/2 Bb4/2 | Eb5/2 F5/1 Gb5/1 Bb5/2 Gb5/2 | F5/2 Eb5/1 Db5/1 Ab4/4 | ' +
-      'Db5/2 C5/1 Bb4/1 F5/2 Db5/2 | E5/2 F5/1 G5/1 C6/4 | Ab5/2 G5/1 F5/1 Db5/2 F5/2 | G5/2 Bb5/1 G5/1 E5/2 C5/2 | F5/8 | ' +
+      // тема: мотив с верхним вспомогательным звуком
+      'C5/2 Db5/1 C5/1 Ab4/2 F4/2 | Db5/2 Eb5/1 Db5/1 Bb4/2 Gb4/2 | ' +
+      'C5/2 Bb4/1 Ab4/1 G4/2 F4/2 | G4/2 Ab4/1 Bb4/1 Eb5/4 | ' +
+      'F5/2 Eb5/1 Db5/1 Ab4/2 F4/2 | E5/2 F5/1 G5/1 C5/4 | ' +
+      'Ab5/2 G5/1 F5/1 C5/2 F5/2 | G5/2 F5/1 E5/1 Bb4/2 C5/2 | ' +
+      'F5/2 G5/1 Ab5/1 C6/2 Ab5/2 | Gb5/2 F5/1 Eb5/1 Db5/2 Bb4/2 | ' +
+      'Eb5/2 F5/1 Gb5/1 Bb5/2 Gb5/2 | F5/2 Eb5/1 Db5/1 Ab4/4 | ' +
+      'Db5/2 C5/1 Bb4/1 F5/2 Db5/2 | E5/2 F5/1 G5/1 C6/4 | ' +
+      'Ab5/2 G5/1 F5/1 Db5/2 F5/2 | G5/2 Bb5/1 G5/1 E5/2 C5/2 | ' +
+      'F5/8 | ' +
       // брейкдаун
-      'C5/8 | Db5/8 | C5/4 Ab4/4 | Bb4/4 Db5/4 | ' +
+      'C5/8 | Db5/8 | ' +
+      'C5/4 Ab4/4 | Bb4/4 Db5/4 | ' +
       // соло
       'F5/0.5 G5/0.5 Ab5/1 G5/1 F5/1 C5/2 F5/2 | Db5/0.5 Eb5/0.5 F5/1 Eb5/1 Db5/1 Ab4/2 Db5/2 | ' +
       'Eb5/0.5 F5/0.5 G5/1 F5/1 Eb5/1 Bb4/2 Eb5/2 | E5/1 F5/1 G5/1 Bb5/1 C6/2 G5/2 | ' +
       'Ab5/0.5 G5/0.5 F5/1 C6/1 Ab5/1 F5/2 Ab5/2 | Bb5/0.5 Ab5/0.5 Gb5/1 Db6/1 Bb5/1 Gb5/2 Bb5/2 | ' +
-      'Ab5/1 G5/1 F5/1 Eb5/1 Db5/2 F5/2 | G5/1 E5/1 C5/1 E5/1 G5/2 Bb5/2 | F5/8',
+      'Ab5/1 G5/1 F5/1 Eb5/1 Db5/2 F5/2 | G5/1 E5/1 C5/1 E5/1 G5/2 Bb5/2 | ' +
+      // второй куплет
+      'C5/2 F5/2 Ab5/2 F5/2 | Ab5/2 F5/1 Db5/1 Ab4/4 | ' +
+      'Bb4/2 Eb5/2 G5/2 Bb5/2 | C6/2 Ab5/1 F5/1 C5/4 | ' +
+      'F5/2 G5/1 Ab5/1 C6/2 Ab5/2 | F5/2 Eb5/1 Db5/1 Ab4/2 Db5/2 | ' +
+      'E5/2 G5/1 C6/1 G5/2 E5/2 | Bb5/2 G5/2 E5/2 C5/2 | ' +
+      // второй брейкдаун
+      'F4/8 | Gb4/8 | ' +
+      'F4/4 C5/4 | E4/4 G4/4 | ' +
+      // соло-кульминация и финал
+      'F5/0.5 G5/0.5 Ab5/0.5 Bb5/0.5 C6/1 Ab5/1 F5/2 C5/2 | Db6/0.5 C6/0.5 Bb5/0.5 Ab5/0.5 F5/1 Ab5/1 Db6/2 Ab5/2 | ' +
+      'Eb5/0.5 F5/0.5 Gb5/0.5 Ab5/0.5 Bb5/1 Gb5/1 Eb5/2 Bb4/2 | Gb5/1 Bb5/1 Db6/1 Bb5/1 Gb5/2 Db5/2 | ' +
+      'Ab5/0.5 G5/0.5 F5/0.5 Eb5/0.5 C5/1 F5/1 Ab5/2 C6/2 | C6/1 Bb5/1 G5/1 E5/1 C5/2 G5/2 | ' +
+      'Db6/1 Ab5/1 F5/1 Db5/1 Ab4/2 F5/2 | G5/0.5 Bb5/0.5 C6/1 Bb5/1 G5/1 E5/1 C5/1 G4/2 | ' +
+      'F5/8',
     chart: { minGapMs: 90, minSameLaneMs: 170 },
   },
   {
@@ -157,13 +236,20 @@ export const SONGS: Song[] = [
     title: "Livin' on a Pear",
     artist: 'Bon Juicy',
     difficulty: 'Эксперт (для людей)',
-    blurb: 'Блэк-арпеджио в до-диез миноре на 220 BPM с уменьшёнными аккордами. Giant fiber — не гитарист, но старается.',
+    blurb: 'Блэк-арпеджио в до-диез миноре на 220 BPM, брейкдаун и быстрый соляк шестнадцатыми — 15 нот в секунду. Giant fiber старается как может.',
     bpm: 220,
     key: 'C# harmonic minor',
     transpose: -3,
     groove: 'blast',
-    chords: 'Em | F | G | F | Em | C | Am | B | Em | F | D#dim7 | B7 | Em | C | B7 | Em',
+    sections: [{ from: 17, to: 20, groove: 'breakdown' }],
+    chords:
+      'Em | F | G | F | Em | C | Am | B | ' +
+      'Em | F | D#dim7 | B7 | Em | C | B7 | Em | ' +
+      'Em | F | Em | F | Em | Em | Am | Am | ' +
+      'B | B | Em | C | Am | B | Em | B7 | ' +
+      'Em',
     melody:
+      // тема: арпеджио
       'E4/1 G4/1 B4/1 E5/1 B4/1 G4/1 E4/1 G4/1 | F4/1 A4/1 C5/1 F5/1 C5/1 A4/1 F4/1 A4/1 | ' +
       'G4/1 B4/1 D5/1 G5/1 D5/1 B4/1 G4/1 B4/1 | A4/1 C5/1 F5/1 A5/1 F5/1 C5/1 A4/1 C5/1 | ' +
       'E5/1 B4/1 G4/1 B4/1 E5/1 G5/1 E5/1 B4/1 | E5/1 C5/1 G4/1 C5/1 E5/1 G5/1 E5/1 C5/1 | ' +
@@ -171,8 +257,69 @@ export const SONGS: Song[] = [
       'G5/1 E5/1 B4/1 E5/1 G5/1 B5/1 G5/1 E5/1 | A5/1 F5/1 C5/1 F5/1 A5/1 C6/1 A5/1 F5/1 | ' +
       'D#5/1 F#5/1 A5/1 C6/1 A5/1 F#5/1 D#5/1 F#5/1 | B4/1 D#5/1 F#5/1 A5/1 F#5/1 D#5/1 B4/1 A4/1 | ' +
       'B4/1 E5/1 G5/1 B5/1 G5/1 E5/1 B4/1 E5/1 | C5/1 E5/1 G5/1 C6/1 G5/1 E5/1 C5/1 E5/1 | ' +
-      'A5/1 F#5/1 D#5/1 B4/1 D#5/1 F#5/1 A5/1 B5/1 | E5/8',
+      'A5/1 F#5/1 D#5/1 B4/1 D#5/1 F#5/1 A5/1 B5/1 | E5/8 | ' +
+      // брейкдаун
+      'B4/8 | C5/8 | ' +
+      'B4/4 G4/4 | A4/4 F4/4 | ' +
+      // соляк: шестнадцатые, гаммы и свипы
+      'E5/0.5 F#5/0.5 G5/0.5 A5/0.5 B5/0.5 C6/0.5 B5/0.5 A5/0.5 G5/0.5 F#5/0.5 E5/0.5 F#5/0.5 G5/0.5 A5/0.5 B5/0.5 C6/0.5 | E5/0.5 F#5/0.5 G5/0.5 A5/0.5 B5/0.5 C6/0.5 D#6/0.5 E6/0.5 D#6/0.5 C6/0.5 B5/0.5 A5/0.5 G5/0.5 F#5/0.5 E5/0.5 D#5/0.5 | ' +
+      'A4/0.5 B4/0.5 C5/0.5 D5/0.5 E5/0.5 F5/0.5 G5/0.5 A5/0.5 G5/0.5 F5/0.5 E5/0.5 D5/0.5 C5/0.5 B4/0.5 A4/0.5 G4/0.5 | C5/0.5 D5/0.5 E5/0.5 F5/0.5 E5/0.5 D5/0.5 C5/0.5 B4/0.5 A4/0.5 B4/0.5 C5/0.5 D5/0.5 E5/0.5 F5/0.5 G5/0.5 A5/0.5 | ' +
+      'B4/0.5 C5/0.5 D#5/0.5 E5/0.5 F#5/0.5 G5/0.5 F#5/0.5 E5/0.5 D#5/0.5 E5/0.5 F#5/0.5 G5/0.5 A5/0.5 B5/0.5 A5/0.5 G5/0.5 | F#5/0.5 G5/0.5 A5/0.5 B5/0.5 C6/0.5 B5/0.5 A5/0.5 G5/0.5 F#5/0.5 E5/0.5 D#5/0.5 C5/0.5 B4/0.5 A4/0.5 G4/0.5 F#4/0.5 | ' +
+      'E5/0.5 G5/0.5 B5/0.5 E6/0.5 B5/0.5 G5/0.5 B5/0.5 E6/0.5 B5/0.5 G5/0.5 E5/0.5 B4/0.5 G4/0.5 E4/0.5 G4/0.5 B4/0.5 | C5/0.5 E5/0.5 G5/0.5 C6/0.5 G5/0.5 E5/0.5 C5/0.5 E5/0.5 G5/0.5 C6/0.5 E6/0.5 C6/0.5 G5/0.5 E5/0.5 C5/0.5 G4/0.5 | ' +
+      'A4/0.5 C5/0.5 E5/0.5 A5/0.5 E5/0.5 C5/0.5 A4/0.5 C5/0.5 E5/0.5 A5/0.5 C6/0.5 A5/0.5 E5/0.5 C5/0.5 A4/0.5 E4/0.5 | B4/0.5 D#5/0.5 F#5/0.5 B5/0.5 F#5/0.5 D#5/0.5 B4/0.5 D#5/0.5 F#5/0.5 B5/0.5 D#6/0.5 B5/0.5 F#5/0.5 D#5/0.5 B4/0.5 F#4/0.5 | ' +
+      'E5/1 F#5/1 G5/1 A5/1 B5/1 C6/1 D#6/1 E6/1 | D#6/1 B5/1 A5/1 F#5/1 D#5/1 B4/1 A4/1 F#4/1 | ' +
+      'E5/8',
     chart: { minGapMs: 100, minSameLaneMs: 220 },
+  },
+  {
+    id: 'floyd',
+    title: 'Shine On You Crazy Drosophila',
+    artist: 'Pink Fly',
+    difficulty: 'Медитативный',
+    blurb: 'Психоделический прог в ре миноре на три минуты: чистые арпеджио, орган, редкие барабаны и тягучее соло. Мухи в зале сидят на полу и смотрят вверх.',
+    bpm: 63,
+    key: 'D minor',
+    transpose: 0,
+    groove: 'psych',
+    smoothLead: true,
+    chords:
+      'Dm | Dm | C | C | Dm | Dm | C | C | ' +
+      'Bb | Bb | Gm | A | Dm | F | C | Gm | ' +
+      'Dm | Bb | A | A | Dm | Dm | Bb | C | ' +
+      'Dm | Gm | A | Dm | Bb | C | Dm | Dm | ' +
+      'Dm | C | Bb | A | Dm | C | Gm | A | ' +
+      'Dm | Bb | A | Dm',
+    melody:
+      // вступление: только арпеджио
+      '-/8 | -/8 | ' +
+      '-/8 | -/8 | ' +
+      // тема: длинные ноты, подтяжка — только в вершине фразы
+      'D5/6 -/2 | F5/4 E5/2 D5/2 | ' +
+      'E5/6 -/2 | G5~A5/6 -/2 | ' +
+      'D5/4 F5/4 | Bb4/6 -/2 | ' +
+      'G5/4 F5/2 D5/2 | A5/8 | ' +
+      // вторая тема
+      'A5/2 F5/2 D5/4 | C6/6 -/2 | ' +
+      'E5/2 G5/2 E5/4 | D5/4 Bb4/2 G4/2 | ' +
+      'F5/2 A5/2 D6/4 | D6~F6/6 -/2 | ' +
+      'C#6/4 A5/4 | E5/8 | ' +
+      // тягучее соло
+      'D5/2 F5/2 A5/4 | A5~C6/8 | ' +
+      'F5/4 D5/2 F5/2 | G5/2 E5/2 C5/4 | ' +
+      'D6/6 -/2 | Bb5/2 A5/2 G5/4 | ' +
+      'A5/4 C#6~D6/4 | D5/8 | ' +
+      // тихая интерлюдия
+      'Bb4/8 | C5/8 | ' +
+      'D5/4 F5/4 | A4/8 | ' +
+      // соло-кульминация
+      'F5/2 A5/2 D6/4 | E6/6 -/2 | ' +
+      'D6/2 C6/2 A5/4 | C#6/4 E6~F6/4 | ' +
+      'A5/2 D6/2 F6/4 | E6/2 C6/2 G5/4 | ' +
+      'Bb5~D6/6 -/2 | A5/2 C#6/2 E6/4 | ' +
+      // кода
+      'D5/4 F5/4 | F5~G5/6 -/2 | ' +
+      'E5/4 C#5/4 | D5/8',
+    chart: { minGapMs: 300, minSameLaneMs: 700 },
   },
 ];
 
@@ -241,16 +388,18 @@ export function buildMelody(song: Song): MelodyNote[] {
   song.melody.split('|').forEach((bar, barIndex) => {
     let position = 0;
     for (const token of bar.trim().split(/\s+/)) {
-      const match = /^(?:([A-G][#b]?)(\d)|-)\/(\d+(?:\.5)?)$/.exec(token);
+      const match = /^(?:([A-G][#b]?)(\d)(?:~([A-G][#b]?)(\d))?|-)\/(\d+(?:\.5)?)$/.exec(token);
       if (!match) throw new Error(`${song.id}, такт ${barIndex + 1}: непонятная нота «${token}»`);
-      const length = Number(match[3]);
+      const length = Number(match[5]);
       if (match[1]) {
         const midi = (Number(match[2]) + 1) * 12 + pitchClass(match[1]) + song.transpose;
+        const bendTo = match[3] ? (Number(match[4]) + 1) * 12 + pitchClass(match[3]) + song.transpose : undefined;
         notes.push({
           timeMs: barStartMs(song, barIndex) + position * eighth,
           midi,
           durationMs: length * eighth,
           harmony: harmonize(midi, chords[barIndex], vocabulary),
+          bendTo,
         });
       }
       position += length;
@@ -350,6 +499,10 @@ interface GroovePattern {
   hat?: string;
   ride?: string;
   rhythm: string;
+  /** Вместо дисторшн-аккордов — чистое арпеджио: номер ступени аккорда на каждой шестнадцатой. */
+  arpeggio?: (number | null)[];
+  /** Бас отдельно от риффа: [шестнадцатая, ступень, длина в шестнадцатых]. */
+  bassSteps?: [number, 'R' | '5', number][];
   /** Колокол на первую долю каждого второго такта. */
   bell?: boolean;
   /** Сбивка в последнем такте части: томы и малый. */
@@ -389,6 +542,16 @@ const GROOVES: Record<Groove, GroovePattern> = {
     ride: 'x...x...x...x...',
     rhythm: 'O.P.P.P.O.P.P.P.',
     fill: { snare: '........xxxxxxxx' },
+  },
+  // психоделический прог: полтемпа, чистые арпеджио, орган и много воздуха
+  psych: {
+    kick: 'X.......o.......',
+    snare: '........X.......',
+    ride: 'o...o...o...o...',
+    rhythm: '................',
+    arpeggio: [0, null, 1, null, 2, null, 3, null, 2, null, 1, null, 2, null, 3, null],
+    bassSteps: [[0, 'R', 8], [8, '5', 8]],
+    fill: { tomLow: '............o.o.' },
   },
   // брейкдаун: синкопированные чаги с тритоном и малой секундой, бочка в унисон с гитарой; соло здесь тянет длинные ноты
   breakdown: {
@@ -479,6 +642,30 @@ export function buildBacking(song: Song): BackingEvent[] {
       pushDrums('snare', groove.fill.snare, start);
     }
 
+    // чистое арпеджио вместо дисторшн-аккордов
+    if (groove.arpeggio) {
+      const voicing = [...chordVoicing(chord).map((midi) => midi + 12), chordVoicing(chord)[0] + 24];
+      groove.arpeggio.forEach((degree, i) => {
+        if (degree === null) return;
+        events.push({
+          timeMs: start + i * sixteenth,
+          kind: 'clean',
+          midi: voicing[Math.min(degree, voicing.length - 1)],
+          durationMs: sixteenth * 4,
+          velocity: i % 4 === 0 ? 0.9 : 0.6,
+        });
+      });
+      for (const [step, degree, length] of groove.bassSteps ?? []) {
+        events.push({
+          timeMs: start + step * sixteenth,
+          kind: 'bass',
+          midi: powerRoot(chord) + (degree === '5' ? 7 : 0),
+          durationMs: length * sixteenth * 0.95,
+        });
+      }
+      return;
+    }
+
     // рифф ритм-гитары и бас в унисон
     const root = powerRoot(chord);
     const hits = [...groove.rhythm].flatMap((symbol, i) => (RIFF[symbol] ? [{ i, ...RIFF[symbol] }] : []));
@@ -516,7 +703,16 @@ export function buildBacking(song: Song): BackingEvent[] {
   const charted = new Set(buildChart(song).map((note) => note.timeMs));
   for (const note of buildMelody(song)) {
     const fly = charted.has(note.timeMs);
-    events.push({ timeMs: note.timeMs, kind: 'lead', midi: note.midi, harmony: note.harmony, durationMs: note.durationMs, fly });
+    events.push({
+      timeMs: note.timeMs,
+      kind: 'lead',
+      midi: note.midi,
+      harmony: note.harmony,
+      durationMs: note.durationMs,
+      fly,
+      bendTo: note.bendTo,
+      smooth: song.smoothLead,
+    });
   }
 
   return events.sort((a, b) => a.timeMs - b.timeMs);
