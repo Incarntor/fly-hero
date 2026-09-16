@@ -37,7 +37,7 @@ export type BackingEvent =
   /** Ритм-гитара с дисторшном: пауэр-аккорд, открытый или глушёный ладонью. */
   | { timeMs: number; kind: 'power'; midi: number; fifth: number; durationMs: number; muted: boolean; velocity: number; attackMs?: number }
   /** Чистая гитара: арпеджио по аккорду, с эхом и залом. */
-  | { timeMs: number; kind: 'clean'; midi: number; durationMs: number; velocity: number }
+  | { timeMs: number; kind: 'clean'; midi: number; durationMs: number; velocity: number; pan?: number }
   /** Погребальный колокол. */
   | { timeMs: number; kind: 'bell'; midi: number; velocity: number }
   /** Нота мелодии. Звучит всегда, попала муха или нет, — так музыка не рвётся; fly — нота из грифа мухи. */
@@ -58,6 +58,8 @@ export interface Song {
   smoothLead?: boolean;
   /** Части с другим грувом: такты с 1, включительно. */
   sections?: { from: number; to: number; groove: Groove }[];
+  /** Динамика аранжировки: в этих тактах инструменты молчат, чтобы следующая часть звучала шире. */
+  arrangement?: { from: number; to: number; drop: ('chord' | 'bass' | 'power' | 'drums')[] }[];
   /** Аккорд на такт, такты через «|». */
   chords: string;
   melody: string;
@@ -79,6 +81,7 @@ export const SONGS: Song[] = [
     transpose: -5,
     groove: 'doom',
     sections: [{ from: 17, to: 20, groove: 'breakdown' }],
+    arrangement: [{ from: 1, to: 8, drop: ['chord'] }, { from: 17, to: 20, drop: ['chord'] }, { from: 29, to: 32, drop: ['chord'] }],
     chords:
       'Em | C | Am | B | Em | C | B | B | ' +
       'Am | Em | C | B | Am | C | B | Em | ' +
@@ -88,15 +91,15 @@ export const SONGS: Song[] = [
       'Am | B | Em | C | Am | B | F | B | ' +
       'Em',
     melody:
-      // тема: нисходящий мотив-плач, проводится секвенцией
-      'B4/2 A4/1 G4/1 A4/2 B4/2 | C5/2 B4/1 A4/1 G4/4 | ' +
-      'A4/2 G4/1 F#4/1 E4/2 A4/2 | B4/2 C5/1 B4/1 A4/2 F#4/2 | ' +
-      'B4/2 A4/1 G4/1 A4/2 B4/2 | E5/2 D5/1 C5/1 B4/2 C5/2 | ' +
-      'D#5/2 C5/1 B4/1 A4/2 F#4/2 | B4/6 -/2 | ' +
-      'C5/2 D5/1 E5/1 C5/2 A4/2 | B4/2 C5/1 B4/1 G4/2 E4/2 | ' +
-      'E5/2 F#5/1 G5/1 E5/2 C5/2 | F#5/2 E5/1 D#5/1 B4/4 | ' +
-      'E5/2 D5/1 C5/1 A4/2 C5/2 | G5/2 F#5/1 E5/1 C5/2 E5/2 | ' +
-      'F#5/2 E5/1 D#5/1 C5/2 D#5/2 | E5/8 | ' +
+      // хук: короткая фраза с синкопой, повторяется и идёт секвенцией; с 9-го такта — припев
+      'B4/1 D5/1 E5/3 -/1 D5/2 | C5/1 B4/1 G4/3 -/1 B4/2 | ' +
+      'A4/1 C5/1 E5/3 -/1 C5/2 | B4/2 D#5/2 F#5/3 -/1 | ' +
+      'B4/1 D5/1 E5/3 -/1 D5/2 | C5/1 B4/1 G4/3 -/1 B4/2 | ' +
+      'D#5/1 F#5/1 B5/3 -/1 F#5/2 | F#5/2 D#5/2 B4/4 | ' +
+      'E5/2 A5/4 G5/2 | B5/2 E5/4 G5/2 | ' +
+      'C6/2 B5/2 G5/4 | F#5/4 D#5/4 | ' +
+      'E5/2 A5/4 G5/2 | E5/2 G5/4 E5/2 | ' +
+      'D#5/2 F#5/2 B5/4 | B4/4 E5/4 | ' +
       // брейкдаун
       'B4/8 | C5/8 | ' +
       'B4/4 G4/4 | A4/4 F4/4 | ' +
@@ -105,10 +108,10 @@ export const SONGS: Song[] = [
       'G5/1 F#5/1 E5/1 D#5/1 E5/2 B4/2 | G5/1 A5/1 G5/1 E5/1 C5/4 | ' +
       'A5/0.5 G5/0.5 F#5/0.5 E5/0.5 C5/1 E5/1 A5/2 E5/2 | B5/0.5 A5/0.5 G5/0.5 F#5/0.5 D#5/1 F#5/1 B5/2 F#5/2 | ' +
       'C6/0.5 B5/0.5 A5/0.5 G5/0.5 E5/1 G5/1 C6/2 G5/2 | B5/2 A5/1 G5/1 F#5/2 D#5/2 | ' +
-      // второй куплет: та же тема октавой выше
-      'B5/2 A5/1 G5/1 A5/2 B5/2 | C6/2 B5/1 A5/1 G5/4 | ' +
-      'A5/2 G5/1 F#5/1 E5/2 A5/2 | B5/2 A5/1 F#5/1 D#5/2 B4/2 | ' +
-      'E5/2 G5/2 B5/2 E6/2 | C6/4 B5/2 G5/2 | ' +
+      // второй куплет: тот же хук октавой выше
+      'B5/1 D6/1 E6/3 -/1 D6/2 | C6/1 B5/1 G5/3 -/1 B5/2 | ' +
+      'A5/1 C6/1 E6/3 -/1 C6/2 | B5/2 D#6/2 F#6/3 -/1 | ' +
+      'E5/2 G5/2 B5/4 | C6/4 G5/2 E5/2 | ' +
       'F#5/2 D#5/2 B4/4 | E5/8 | ' +
       // бридж
       'A4/4 C5/2 E5/2 | F5/4 E5/2 C5/2 | ' +
@@ -132,6 +135,7 @@ export const SONGS: Song[] = [
     transpose: -7,
     groove: 'gallop',
     sections: [{ from: 17, to: 20, groove: 'breakdown' }, { from: 41, to: 44, groove: 'breakdown' }],
+    arrangement: [{ from: 1, to: 8, drop: ['chord'] }, { from: 17, to: 20, drop: ['chord'] }, { from: 29, to: 32, drop: ['chord'] }],
     chords:
       'Am | F | G | E | Am | F | Dm | E | ' +
       'F | G | Am | Dm | F | E | E7 | Am | ' +
@@ -141,15 +145,15 @@ export const SONGS: Song[] = [
       'Am | Bb | Am | E | Dm | E | Am | F | ' +
       'G | E | Am | E7 | Am',
     melody:
-      // тема: галопирующий мотив с повтором и ответом
-      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 B4/1 A4/2 G4/2 | ' +
-      'B4/2 B4/1 A4/1 G4/2 D5/2 | B4/4 G#4/2 E4/2 | ' +
-      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 D5/1 E5/2 F5/2 | ' +
-      'F5/2 E5/1 D5/1 A4/2 D5/2 | E5/4 D5/2 B4/2 | ' +
-      'A5/2 G5/1 F5/1 C5/2 F5/2 | B5/2 A5/1 G5/1 D5/2 G5/2 | ' +
-      'C6/2 B5/1 A5/1 E5/2 A5/2 | F5/2 E5/1 D5/1 A5/4 | ' +
-      'A5/2 G5/1 F5/1 C5/2 F5/2 | G#5/2 F5/1 E5/1 B4/2 E5/2 | ' +
-      'D5/2 E5/1 F5/1 G#5/2 B5/2 | A5/8 | ' +
+      // хук: галопирующая фраза с паузой-синкопой, секвенция по аккордам; с 9-го такта — припев
+      'A4/1 A4/1 C5/1 E5/3 -/1 C5/1 | F4/1 F4/1 A4/1 C5/3 -/1 A4/1 | ' +
+      'G4/1 G4/1 B4/1 D5/3 -/1 B4/1 | E5/2 D5/1 B4/1 G#4/4 | ' +
+      'A4/1 A4/1 C5/1 E5/3 -/1 C5/1 | F4/1 F4/1 A4/1 C5/3 -/1 A4/1 | ' +
+      'D5/1 D5/1 F5/1 A5/3 -/1 F5/1 | E5/4 G#4/2 B4/2 | ' +
+      'C5/2 A5/4 G5/2 | B4/2 G5/4 F5/2 | ' +
+      'C5/2 A5/4 E5/2 | D5/2 F5/4 E5/2 | ' +
+      'C5/2 A5/4 G5/2 | B4/2 G#5/4 E5/2 | ' +
+      'D5/2 B4/2 G#4/4 | A4/8 | ' +
       // брейкдаун
       'E5/8 | F5/8 | ' +
       'E5/4 C5/4 | D5/4 F5/4 | ' +
@@ -158,11 +162,11 @@ export const SONGS: Song[] = [
       'A5/1 G#5/1 A5/1 B5/1 C6/2 A5/2 | C6/1 B5/1 A5/1 G5/1 F5/2 C5/2 | ' +
       'F5/0.5 E5/0.5 D5/1 A5/1 F5/1 D5/2 F5/2 | G#5/0.5 F5/0.5 E5/1 B5/1 G#5/1 E5/2 G#5/2 | ' +
       'A5/1 C6/1 B5/1 A5/1 G#5/1 A5/1 C6/2 | B5/2 G#5/2 E5/2 D5/2 | ' +
-      // второй куплет: ответная фраза уходит октавой выше
-      'E5/2 E5/1 D5/1 C5/2 B4/2 | C5/2 C5/1 B4/1 A4/2 G4/2 | ' +
-      'B4/2 B4/1 A4/1 G4/2 D5/2 | B4/4 G#4/2 E4/2 | ' +
-      'A5/2 G5/1 E5/1 C5/2 A4/2 | C6/2 A5/1 F5/1 C5/2 A4/2 | ' +
-      'B5/2 G#5/1 E5/1 B4/2 G#4/2 | A4/8 | ' +
+      // второй куплет: тот же хук октавой выше
+      'A5/1 A5/1 C6/1 E6/3 -/1 C6/1 | F5/1 F5/1 A5/1 C6/3 -/1 A5/1 | ' +
+      'G5/1 G5/1 B5/1 D6/3 -/1 B5/1 | E6/2 D6/1 B5/1 G#5/4 | ' +
+      'C6/2 A5/4 E5/2 | A5/2 F5/4 C5/2 | ' +
+      'G#5/2 E5/4 B4/2 | A4/8 | ' +
       // бридж
       'D5/4 F5/2 A5/2 | C6/4 A5/2 E5/2 | ' +
       'Bb5/4 F5/2 D5/2 | B5/2 G#5/2 E5/4 | ' +
@@ -188,6 +192,7 @@ export const SONGS: Song[] = [
     transpose: -4,
     groove: 'thrash',
     sections: [{ from: 18, to: 21, groove: 'breakdown' }, { from: 38, to: 41, groove: 'breakdown' }],
+    arrangement: [{ from: 1, to: 8, drop: ['chord'] }, { from: 18, to: 21, drop: ['chord'] }, { from: 30, to: 33, drop: ['chord'] }],
     chords:
       'Fm | Gb | Fm | Eb | Db | C | Fm | C7 | ' +
       'Fm | Gb | Ebm | Db | Bbm | C | Db | C7 | ' +
@@ -197,15 +202,15 @@ export const SONGS: Song[] = [
       'C | Fm | Db | Ebm | Gb | Fm | C | Db | ' +
       'C7 | Fm',
     melody:
-      // тема: мотив с верхним вспомогательным звуком
-      'C5/2 Db5/1 C5/1 Ab4/2 F4/2 | Db5/2 Eb5/1 Db5/1 Bb4/2 Gb4/2 | ' +
-      'C5/2 Bb4/1 Ab4/1 G4/2 F4/2 | G4/2 Ab4/1 Bb4/1 Eb5/4 | ' +
-      'F5/2 Eb5/1 Db5/1 Ab4/2 F4/2 | E5/2 F5/1 G5/1 C5/4 | ' +
-      'Ab5/2 G5/1 F5/1 C5/2 F5/2 | G5/2 F5/1 E5/1 Bb4/2 C5/2 | ' +
-      'F5/2 G5/1 Ab5/1 C6/2 Ab5/2 | Gb5/2 F5/1 Eb5/1 Db5/2 Bb4/2 | ' +
-      'Eb5/2 F5/1 Gb5/1 Bb5/2 Gb5/2 | F5/2 Eb5/1 Db5/1 Ab4/4 | ' +
-      'Db5/2 C5/1 Bb4/1 F5/2 Db5/2 | E5/2 F5/1 G5/1 C6/4 | ' +
-      'Ab5/2 G5/1 F5/1 Db5/2 F5/2 | G5/2 Bb5/1 G5/1 E5/2 C5/2 | ' +
+      // хук: рубленая фраза с паузой на сильную долю; с 9-го такта — припев
+      'F4/1 F4/1 Ab4/1 C5/2 -/1 Ab4/2 | Gb4/1 Gb4/1 Bb4/1 Db5/2 -/1 Bb4/2 | ' +
+      'F4/1 F4/1 Ab4/1 C5/2 -/1 Eb5/2 | Eb5/2 Bb4/2 G4/4 | ' +
+      'Db5/1 Db5/1 F5/1 Ab5/2 -/1 F5/2 | C5/1 C5/1 E5/1 G5/2 -/1 E5/2 | ' +
+      'Ab5/2 F5/2 C5/4 | Bb4/2 E5/2 G5/4 | ' +
+      'C5/2 F5/4 Ab5/2 | Db5/2 Gb5/4 Bb5/2 | ' +
+      'Bb4/2 Eb5/4 Gb5/2 | Ab4/2 Db5/4 F5/2 | ' +
+      'F5/2 Bb5/4 Db6/2 | G5/2 C6/4 E5/2 | ' +
+      'Ab5/2 F5/2 Db5/4 | G5/2 E5/2 C5/4 | ' +
       'F5/8 | ' +
       // брейкдаун
       'C5/8 | Db5/8 | ' +
@@ -215,11 +220,11 @@ export const SONGS: Song[] = [
       'Eb5/0.5 F5/0.5 G5/1 F5/1 Eb5/1 Bb4/2 Eb5/2 | E5/1 F5/1 G5/1 Bb5/1 C6/2 G5/2 | ' +
       'Ab5/0.5 G5/0.5 F5/1 C6/1 Ab5/1 F5/2 Ab5/2 | Bb5/0.5 Ab5/0.5 Gb5/1 Db6/1 Bb5/1 Gb5/2 Bb5/2 | ' +
       'Ab5/1 G5/1 F5/1 Eb5/1 Db5/2 F5/2 | G5/1 E5/1 C5/1 E5/1 G5/2 Bb5/2 | ' +
-      // второй куплет
-      'C5/2 F5/2 Ab5/2 F5/2 | Ab5/2 F5/1 Db5/1 Ab4/4 | ' +
-      'Bb4/2 Eb5/2 G5/2 Bb5/2 | C6/2 Ab5/1 F5/1 C5/4 | ' +
-      'F5/2 G5/1 Ab5/1 C6/2 Ab5/2 | F5/2 Eb5/1 Db5/1 Ab4/2 Db5/2 | ' +
-      'E5/2 G5/1 C6/1 G5/2 E5/2 | Bb5/2 G5/2 E5/2 C5/2 | ' +
+      // второй куплет: возвращение хука
+      'F5/1 F5/1 Ab5/1 C6/2 -/1 Ab5/2 | Db5/1 Db5/1 F5/1 Ab5/2 -/1 F5/2 | ' +
+      'Eb5/1 Eb5/1 G5/1 Bb5/2 -/1 G5/2 | C6/2 Ab5/2 F5/4 | ' +
+      'F5/1 F5/1 Ab5/1 C6/2 -/1 Ab5/2 | Ab5/2 F5/2 Db5/4 | ' +
+      'G5/2 E5/2 C5/4 | Bb5/2 G5/2 E5/4 | ' +
       // второй брейкдаун
       'F4/8 | Gb4/8 | ' +
       'F4/4 C5/4 | E4/4 G4/4 | ' +
@@ -242,6 +247,7 @@ export const SONGS: Song[] = [
     transpose: -3,
     groove: 'blast',
     sections: [{ from: 17, to: 20, groove: 'breakdown' }],
+    arrangement: [{ from: 1, to: 8, drop: ['chord'] }],
     chords:
       'Em | F | G | F | Em | C | Am | B | ' +
       'Em | F | D#dim7 | B7 | Em | C | B7 | Em | ' +
@@ -282,6 +288,7 @@ export const SONGS: Song[] = [
     transpose: 0,
     groove: 'psych',
     smoothLead: true,
+    arrangement: [{ from: 1, to: 4, drop: ['drums'] }, { from: 29, to: 30, drop: ['drums', 'bass'] }],
     chords:
       'Dm | Dm | C | C | Dm | Dm | C | C | ' +
       'Bb | Bb | Gm | A | Dm | F | C | Gm | ' +
@@ -496,6 +503,8 @@ function clampLane(value: number): Lane {
 interface GroovePattern {
   kick: string;
   snare: string;
+  /** Призрачные удары по малому — тихие шестнадцатые между основными. */
+  ghost?: string;
   hat?: string;
   ride?: string;
   rhythm: string;
@@ -524,6 +533,7 @@ const GROOVES: Record<Groove, GroovePattern> = {
     kick: 'X.oox.oox.oox.oo',
     snare: '....X.......X...',
     hat: 'x.o.x.o.x.o.x.o.',
+    ghost: '..o....o..o.....',
     rhythm: 'O.PPP.PPP.PPO.PP',
     fill: { snare: '........x.x.xxxx', tomLow: '..............X.' },
   },
@@ -532,6 +542,7 @@ const GROOVES: Record<Groove, GroovePattern> = {
     kick: 'X.o.x.o.X.o.x.o.',
     snare: '....X.......X...',
     hat: 'x.x.x.x.x.x.x.x.',
+    ghost: '..o.....o.o.....',
     rhythm: 'O.P.P.P.P.P.O.P.',
     fill: { tomHigh: '........x.x.....', tomMid: '............x.x.', snare: '..............XX' },
   },
@@ -583,6 +594,28 @@ function chordVoicing(chord: Chord): number[] {
   return chord.intervals.map((interval) => root + interval);
 }
 
+/** Детерминированный «человеческий фактор»: один и тот же трек звучит одинаково, но не по линейке. */
+function humanizer(song: Song): (kind: string) => { shiftMs: number; gain: number } {
+  let seed = [...song.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (((t ^ (t >>> 14)) >>> 0) / 4294967296) * 2 - 1;
+  };
+  // у каждого инструмента своя «расхлябанность»: тарелки гуляют сильнее всего, бочка почти не гуляет
+  const spread: Record<string, [shift: number, gain: number]> = {
+    hat: [9, 0.18], ride: [9, 0.18], snare: [4, 0.1], kick: [3, 0.06],
+    tomHigh: [6, 0.12], tomMid: [6, 0.12], tomLow: [6, 0.12],
+    power: [5, 0.07], bass: [4, 0.06], lead: [6, 0], clean: [7, 0.12],
+  };
+  return (kind) => {
+    const [shift, gain] = spread[kind] ?? [0, 0];
+    return { shiftMs: random() * shift, gain: 1 + random() * gain };
+  };
+}
+
 export function buildBacking(song: Song): BackingEvent[] {
   const beat = beatMs(song);
   const sixteenth = beat / 4;
@@ -622,7 +655,8 @@ export function buildBacking(song: Song): BackingEvent[] {
     const sectionStart = bar === 0 || grooveAt(song, bar - 1) !== grooveName;
     const fillBar = !isLast && (bar % 8 === 7 || grooveAt(song, bar + 1) !== grooveName);
 
-    events.push({ timeMs: start, kind: 'chord', midis: chordVoicing(chord), durationMs: beat * 4 });
+    const dropped = song.arrangement?.find((a) => bar + 1 >= a.from && bar + 1 <= a.to)?.drop ?? [];
+    if (!dropped.includes('chord')) events.push({ timeMs: start, kind: 'chord', midis: chordVoicing(chord), durationMs: beat * 4 });
     if (bar % 4 === 0 || sectionStart) {
       const velocity = bar === 0 ? 0.7 : sectionStart || bar % 8 === 0 ? 1 : 0.7;
       events.push({ timeMs: start, kind: 'crash', velocity });
@@ -630,11 +664,16 @@ export function buildBacking(song: Song): BackingEvent[] {
     if (groove.bell && bar % 2 === 0) events.push({ timeMs: start, kind: 'bell', midi: powerRoot(chord) + 24, velocity: 0.8 });
 
     // во второй половине такта со сбивкой барабаны уступают место томам
-    const grooveEnd = (pattern: string | undefined) => (fillBar && pattern ? pattern.slice(0, 8) + '........' : pattern);
+    const grooveEnd = (pattern: string | undefined) =>
+      dropped.includes('drums') ? undefined : fillBar && pattern ? pattern.slice(0, 8) + '........' : pattern;
     pushDrums('kick', grooveEnd(groove.kick), start);
     pushDrums('snare', grooveEnd(groove.snare), start);
     pushDrums('hat', grooveEnd(groove.hat), start);
     pushDrums('ride', grooveEnd(groove.ride), start);
+    // призрачные удары — еле слышные, но именно от них грув «дышит»
+    if (!dropped.includes('drums') && !fillBar && groove.ghost) {
+      for (let i = 0; i < 16; i++) if (groove.ghost[i] === 'o') events.push({ timeMs: start + i * sixteenth, kind: 'snare', velocity: 0.16 });
+    }
     if (fillBar) {
       pushDrums('tomHigh', groove.fill.tomHigh, start);
       pushDrums('tomMid', groove.fill.tomMid, start);
@@ -653,6 +692,7 @@ export function buildBacking(song: Song): BackingEvent[] {
           midi: voicing[Math.min(degree, voicing.length - 1)],
           durationMs: sixteenth * 4,
           velocity: i % 4 === 0 ? 0.9 : 0.6,
+          pan: i % 8 < 4 ? -0.35 : 0.35, // арпеджио переливается по сторонам
         });
       });
       for (const [step, degree, length] of groove.bassSteps ?? []) {
@@ -674,6 +714,7 @@ export function buildBacking(song: Song): BackingEvent[] {
       const length = (next - i) * sixteenth;
       // у уменьшённых аккордов на тонике — тритон вместо квинты
       const fifth = offset === 0 && !chord.intervals.includes(7) ? 6 : 7;
+      if (dropped.includes('power')) return;
       events.push({
         timeMs: start + i * sixteenth,
         kind: 'power',
@@ -683,7 +724,7 @@ export function buildBacking(song: Song): BackingEvent[] {
         muted,
         velocity: muted ? 0.8 : 1,
       });
-      events.push({ timeMs: start + i * sixteenth, kind: 'bass', midi: root + offset, durationMs: length * 0.9 });
+      if (!dropped.includes('bass')) events.push({ timeMs: start + i * sixteenth, kind: 'bass', midi: root + offset, durationMs: length * 0.9 });
     });
   });
 
@@ -715,7 +756,16 @@ export function buildBacking(song: Song): BackingEvent[] {
     });
   }
 
-  return events.sort((a, b) => a.timeMs - b.timeMs);
+  // микросдвиги и разная сила удара — чтобы не звучало «по линейке»
+  const human = humanizer(song);
+  const humanized = events.map((event) => {
+    if (event.kind === 'chord' || event.kind === 'bell' || event.kind === 'swell') return event;
+    const { shiftMs, gain } = human(event.kind);
+    const shifted = { ...event, timeMs: Math.max(0, event.timeMs + shiftMs) };
+    return 'velocity' in shifted ? { ...shifted, velocity: Math.min(1, shifted.velocity * gain) } : shifted;
+  });
+
+  return humanized.sort((a, b) => a.timeMs - b.timeMs);
 }
 
 export function midiToFreq(midi: number): number {

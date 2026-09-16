@@ -12,6 +12,8 @@ export class Band {
   private master!: GainNode;
   /** Вход компрессора — общая шина всех инструментов. */
   private bus!: AudioNode;
+  /** Канал, который приседает под бочкой: бас и пэд освобождают место удару. */
+  private duck!: GainNode;
   private drums!: GainNode;
   private delay!: DelayNode;
   private reverb!: ConvolverNode;
@@ -54,11 +56,20 @@ export class Band {
     this.master = ctx.createGain();
     this.master.gain.value = 0.8;
     compressor.connect(limiter).connect(this.master).connect(ctx.destination);
-    this.bus = compressor;
+
+    // лёгкое насыщение на шине — «клей», из-за которого микс перестаёт быть стерильным
+    const glue = ctx.createWaveShaper();
+    glue.curve = softClipCurve(1.15);
+    glue.connect(compressor);
+    this.bus = glue;
+
+    this.duck = ctx.createGain();
+    this.duck.gain.value = 1;
+    this.duck.connect(glue);
 
     this.drums = ctx.createGain();
     this.drums.gain.value = 0.7;
-    this.drums.connect(compressor);
+    this.drums.connect(glue);
 
     // ревербератор: затухающий стерео-шум вместо записанного зала
     this.reverb = ctx.createConvolver();
@@ -117,7 +128,7 @@ export class Band {
       case 'lead':
         return this.lead(when, event.midi, event.durationMs * timeScale, event.fly ? (event.smooth ? 'smooth' : 'fly') : 'rhythm', event.harmony, event.bendTo);
       case 'clean':
-        return this.clean(when, event.midi, event.durationMs * timeScale, event.velocity);
+        return this.clean(when, event.midi, event.durationMs * timeScale, event.velocity, event.pan ?? 0);
       case 'bell':
         return this.bell(when, event.midi, event.velocity);
       case 'tomHigh':
@@ -148,6 +159,12 @@ export class Band {
     osc.stop(when + 0.45);
     // щелчок колотушки — чтобы бочку было слышно сквозь гитары
     this.noiseBurst(when, 'bandpass', 3500, 0.22 * velocity, 0.015, this.drums, 1.2);
+    // сайдчейн: бас и пэд на мгновение расступаются
+    const duck = this.duck.gain;
+    duck.cancelScheduledValues(when);
+    duck.setValueAtTime(1, when);
+    duck.linearRampToValueAtTime(1 - 0.4 * velocity, when + 0.012);
+    duck.linearRampToValueAtTime(1, when + 0.16);
   }
 
   snare(when: number, velocity = 1): void {
@@ -167,7 +184,7 @@ export class Band {
   }
 
   hat(when: number, velocity = 1): void {
-    this.noiseBurst(when, 'highpass', 8000, 0.08 * velocity, 0.035, this.drums);
+    this.noiseBurst(when, 'highpass', 8000, 0.08 * velocity, 0.035, this.drumPan(0.28));
   }
 
   /** «Обратная» тарелка: шум нарастает и светлеет к концу, обрывается ровно в долю. */
@@ -195,8 +212,17 @@ export class Band {
   }
 
   ride(when: number, velocity = 1): void {
-    this.noiseBurst(when, 'bandpass', 6500, 0.09 * velocity, 0.45, this.drums, 1.5, 0.2);
+    this.noiseBurst(when, 'bandpass', 6500, 0.09 * velocity, 0.45, this.drumPan(-0.25), 1.5, 0.2);
     this.tone(when, 3100, 0.012 * velocity, 0.5, 'sine');
+  }
+
+  /** Барабан со своим местом в панораме. */
+  private drumPan(pan: number): AudioNode {
+    const ctx = this.ctx!;
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = pan;
+    panner.connect(this.drums);
+    return panner;
   }
 
   tom(when: number, freq: number, velocity = 1): void {
@@ -208,13 +234,15 @@ export class Band {
     osc.frequency.exponentialRampToValueAtTime(freq, when + 0.05);
     gain.gain.setValueAtTime(0.55 * velocity, when);
     gain.gain.exponentialRampToValueAtTime(0.001, when + 0.35);
-    osc.connect(gain).connect(this.drums);
+    // томы разведены по панораме: высокий слева, низкий справа
+    const pan = this.drumPan(freq > 200 ? -0.35 : freq > 130 ? 0 : 0.35);
+    osc.connect(gain).connect(pan);
     const send = ctx.createGain();
     send.gain.value = 0.3;
     gain.connect(send).connect(this.reverbSend);
     osc.start(when);
     osc.stop(when + 0.4);
-    this.noiseBurst(when, 'lowpass', 1200, 0.12 * velocity, 0.05, this.drums);
+    this.noiseBurst(when, 'lowpass', 1200, 0.12 * velocity, 0.05, pan);
   }
 
   crash(when: number, velocity = 1): void {
@@ -259,7 +287,7 @@ export class Band {
 
     body.connect(gain);
     growl.connect(growlFilter).connect(growlGain).connect(gain);
-    gain.connect(this.bus);
+    gain.connect(this.duck);
     for (const osc of [body, growl]) {
       osc.start(when);
       osc.stop(when + duration + 0.08);
@@ -284,7 +312,7 @@ export class Band {
     gain.gain.setValueAtTime(level, when + Math.max(attack, duration - 0.1));
     gain.gain.linearRampToValueAtTime(0.0001, when + duration + 0.25);
     filter.connect(gain);
-    gain.connect(this.bus);
+    gain.connect(this.duck);
     gain.connect(this.reverbSend);
 
     for (const midi of midis) {
@@ -336,7 +364,7 @@ export class Band {
    * Чистая гитара: мягкий щипок с лёгким хорусом, длинным затуханием, эхом и большим залом —
    * для психоделических арпеджио.
    */
-  clean(when: number, midi: number, durationMs: number, velocity = 1): void {
+  clean(when: number, midi: number, durationMs: number, velocity = 1, pan = 0): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const duration = Math.max(0.3, durationMs / 1000);
@@ -362,7 +390,7 @@ export class Band {
       osc.start(when);
       osc.stop(when + duration + 0.1);
     }
-    tone.connect(gain).connect(this.bus);
+    tone.connect(gain).connect(this.panned(pan));
     const reverb = ctx.createGain();
     reverb.gain.value = 0.55;
     gain.connect(reverb).connect(this.reverbSend);
@@ -378,6 +406,23 @@ export class Band {
    * muted — глушёный ладонью «чаг»: короткий, тёмный и плотный.
    */
   power(when: number, midi: number, fifth: number, durationMs: number, muted: boolean, velocity = 1, attackMs = 4): void {
+    if (!this.ctx) return;
+    // как на записи: две отдельные дубли гитары, разведённые по краям — стена звука вместо одной гитары в центре
+    this.powerTake(when, midi, fifth, durationMs, muted, velocity, attackMs, -0.78, -9);
+    this.powerTake(when + 0.011, midi, fifth, durationMs, muted, velocity * 0.96, attackMs, 0.78, 8);
+  }
+
+  private powerTake(
+    when: number,
+    midi: number,
+    fifth: number,
+    durationMs: number,
+    muted: boolean,
+    velocity: number,
+    attackMs: number,
+    pan: number,
+    spread: number,
+  ): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const duration = Math.max(0.06, durationMs / 1000);
@@ -385,7 +430,7 @@ export class Band {
     mix.gain.value = 0.25;
     const oscillators: OscillatorNode[] = [];
     for (const interval of [0, fifth, 12]) {
-      for (const detune of [-9, 9]) {
+      for (const detune of [-spread, spread]) {
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
         osc.frequency.value = midiToFreq(midi + interval);
@@ -415,7 +460,7 @@ export class Band {
     low.gain.value = muted ? 5 : 2;
 
     const gain = ctx.createGain();
-    const level = (muted ? 0.4 : 0.28) * velocity;
+    const level = (muted ? 0.4 : 0.28) * velocity * 0.72;
     const attack = attackMs / 1000;
     gain.gain.setValueAtTime(0.0001, when);
     if (attack > 0.05) {
@@ -432,7 +477,7 @@ export class Band {
       gain.gain.setValueAtTime(level * 0.75, when + Math.max(0.25, duration - 0.06));
       gain.gain.exponentialRampToValueAtTime(0.0005, when + duration + 0.1);
     }
-    mix.connect(tight).connect(drive).connect(scoop).connect(low).connect(cabinet).connect(gain).connect(this.bus);
+    mix.connect(tight).connect(drive).connect(scoop).connect(low).connect(cabinet).connect(gain).connect(this.panned(pan));
     if (!muted) {
       const send = ctx.createGain();
       send.gain.value = 0.15;
@@ -458,12 +503,12 @@ export class Band {
     if (timbre === 'player') return this.glockenspiel(when, midi + 12);
     const level = timbre === 'rhythm' ? 0.15 : 0.3;
     const bend = bendTo === undefined ? 0 : bendTo - midi;
-    this.guitarVoice(when, midi, duration, level, timbre, bend);
-    // вторая гитара — через свой «усилитель», иначе общий перегруз даст грязные разностные тоны
-    if (harmony !== undefined) this.guitarVoice(when, harmony, duration, level * 0.55, timbre, bend);
+    this.guitarVoice(when, midi, duration, level, timbre, bend, -0.12);
+    // вторая гитара — через свой «усилитель» и с другой стороны сцены
+    if (harmony !== undefined) this.guitarVoice(when, harmony, duration, level * 0.55, timbre, bend, 0.4);
   }
 
-  private guitarVoice(when: number, midi: number, duration: number, level: number, timbre: Timbre, bend = 0): void {
+  private guitarVoice(when: number, midi: number, duration: number, level: number, timbre: Timbre, bend = 0, pan = 0): void {
     const ctx = this.ctx!;
     const freq = midiToFreq(midi);
     const voices: OscillatorNode[] = [];
@@ -519,7 +564,7 @@ export class Band {
     gain.gain.exponentialRampToValueAtTime(0.0001, when + duration + (timbre === 'smooth' ? 0.5 : 0.1));
 
     mix.connect(drive).connect(body).connect(tone).connect(gain);
-    gain.connect(this.bus);
+    gain.connect(this.panned(pan));
     const echo = ctx.createGain();
     echo.gain.value = timbre === 'smooth' ? 0.7 : 1;
     gain.connect(echo).connect(this.delaySend);
@@ -664,6 +709,15 @@ export class Band {
     osc.connect(gain).connect(this.drums);
     osc.start(when);
     osc.stop(when + duration + 0.02);
+  }
+
+  /** Панорама: инструмент занимает своё место в стерео, а не всё в центре. */
+  private panned(pan: number): AudioNode {
+    const ctx = this.ctx!;
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = pan;
+    panner.connect(this.bus);
+    return panner;
   }
 
   private noiseBurst(
